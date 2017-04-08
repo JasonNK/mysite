@@ -1,0 +1,556 @@
+Django投票网站实训项目
+    概述：网站包括两个部分，第一部分公共主页选民投票，第二部分管理页面控制选民与选票
+
+    一 创建项目：
+    '''
+    尽量避免使用django或test这样的关键字于项目中
+    '''
+
+    （一）django-admin startproject mysite # 这会于当前的路径下创建一个mysite文件夹
+    以下为该命令下创建的文件系统：
+    mysite/
+        manage.py
+        mysite/
+            __init__.py # 空文件，告诉python这是一个python包
+            settings.py
+            urls.py
+            wsgi.py
+    mange.py: cmd工具
+    Addition:
+        可以用python manage.py runserver运行服务器，但这个服务器只能用于开发阶段
+        python manage.py runserver 8080可以指定端口号，不写端口号默认http://127.0.0.1:8000/
+        python manage.py runserver 0.0.0.0:8000改服务器的IP可以如左，监听所有公共IP段需要使用0.0.0.0 ?
+        当前开发者模式下的服务器支持热加载的
+    （二） python manage.py startapp polls # 在当前项目下建立一个叫polls的app
+    polls/
+        __init__.py
+        admin.py
+        apps.py
+        migrations/
+            __init__.py
+        models.py
+        tests.py
+        views.py
+
+    （三）添加第一个view
+        1 在views.py中添加如下内容
+        from django.http import HttpResponse
+
+        def index(request): # 函数第一个参数应当是HttpRequest对象，之后的参数为传进来的参数，
+            return HttpResponse("Hello, world. You're at the polls index.")
+        2 要引用这个view，需要配置相应的url，polls目录下创建如下文件urls.py
+
+        from django.conf.urls import url
+        from . import views
+        urlpatterns = [
+            url(r'^$', views.index, name='index'),
+        ]
+
+        Addition:
+            url() argument: regex / view / kwargs(optional) / name(optional)
+            view: ?
+                If the regex uses simple captures, values are passed as positional arguments;
+                if it uses named captures, values are passed as keyword arguments.
+            kwargs: ?
+                Arbitrary keyword arguments can be passed in a dictionary to the target view.
+            name:
+                为url起别名可以让url指向更明确
+                ? This powerful feature allows you to make global changes to the URL patterns of your project while only touching a single file.
+
+        3 于mysite/urls.py中添加urlpatterns
+        from django.conf.urls import include, url
+        from django.contrib import admin
+
+        urlpatterns = [
+            url(r'^polls/', include('polls.urls')), # 当Django使用include()时，它用把余下的url部分都进行剪裁并用于将来的处理
+            url(r'^admin/', admin.site.urls),       # 除却admin.site.urls，其它的情况都应当使用include处理url
+        ]
+
+    二 数据库设置与添加模块
+        1 mysite/settings.py中进行数据库设置
+        如果不进行工业化的运作，可以使用python自带的sqlite3；亦可以通过以下方式将数据库布署为其他工业级数据库（以mysql为例）：
+        1.1 安装mysql
+        1.2 安装django相应的database bindings
+            pip3 install mysqlclient
+        1.3 对数据库在settings.py中进行配置
+            将原来的数据库配置
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.sqlite3',
+                    'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+                }
+            }
+            改为：
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.mysql',
+                    'NAME': 'djangotest',
+                    'USER': 'root',
+                    'PASSWORD': '111111',
+                    'HOST': 'localhost',
+                    'PORT': '3306',
+                }
+            }
+        1.4 测试数据库能否正常运行
+        python manage.py test 该命令会按照settings中的配置生成一个数据库，如果成功再销毁它
+        2 将项目的时间配置在相应的时区下 TIME_ZONE
+        3 将项目中自定义的APP进行相应的设置
+        INSTALLED_APPS默认情况下有以下设置：
+            django.contrib.admin
+            django.contrib.auth
+            django.contrib.contenttypes
+            django.contrib.sessions
+            django.contrib.messages
+            django.contrib.staticfiles
+        4 python manage.py migrate 创建相应表
+        上述命令会看INSTALLED_APPS的设置并自动在数据库中创建相应的表，当然默认的设置并不总是需要，因此可以适当增删
+        5 添加模块(model)
+        5.1 在polls/models.py添加如下代码：
+            from django.db import models
+
+            # Question 和 Choice 继承了 django.db.models.Model
+            class Question(models.Model): # question_text 和 pub_date 是字段名
+                question_text = models.CharField(max_length=200)
+                pub_date = models.DateTimeField('date published')
+
+            class Choice(models.Model):
+                question = models.ForeignKey(Question, on_delete=models.CASCADE)
+                choice_text = models.CharField(max_length=200)
+                votes = models.IntegerField(default=0)
+
+        5.2 在INSTALLED_APPS里对上述的app进行配置
+            根据5.1配置后django可以生成相应的数据库及相应的python数据库access api
+            INSTALLED_APPS = [
+                'polls.apps.PollsConfig',
+                'django.contrib.admin',
+                'django.contrib.auth',
+                'django.contrib.contenttypes',
+                'django.contrib.sessions',
+                'django.contrib.messages',
+                'django.contrib.staticfiles',
+            ]
+        5.3 python manage.py makemigrations polls 告知django已对models作出相应修改并保存为migration
+        5.4 python manage.py sqlmigrate polls 0001 返回migration时产生的sql
+            BEGIN;
+            --
+            -- Create model Choice
+            --
+            CREATE TABLE `polls_choice` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `choice_text` varchar(200) NOT NULL, `votes` integer NOT NULL);
+            --
+            -- Create model Question
+            --
+            CREATE TABLE `polls_question` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `question_text` varchar(200) NOT NULL, `pub_date` datetime(6) NOT NULL);
+            --
+            -- Add field question to choice
+            --
+            ALTER TABLE `polls_choice` ADD COLUMN `question_id` integer NOT NULL;
+            ALTER TABLE `polls_choice` ALTER COLUMN `question_id` DROP DEFAULT;
+            ALTER TABLE `polls_choice` ADD CONSTRAINT `polls_choice_question_id_c5b4b260_fk_polls_question_id` FOREIGN KEY (`question_id`) REFERENCES `polls_question` (`id`);
+            COMMIT;
+
+            注意：
+            1 生成的SQL可能因数据库不同而有差异
+            2 表名由app名与model名加下划线生成
+            3 主键自动添加，外键会有字段名后添加_id
+            4 ? The foreign key relationship is made explicit by a FOREIGN KEY constraint. Don’t worry about the
+            DEFERRABLE parts; that’s just telling PostgreSQL to not enforce the foreign key until the end of the
+            transaction.
+            5 与数据库特定的类型（比如：auto_increment (MySQL), serial (PostgreSQL), or integer primary key autoincrement
+            (SQLite)）由django自动配置
+            6 sqlmigrate 并不真正执行这些sql脚本
+        5.5 python manage.py check 会在不影响数据库的情况下对项目进行检查
+        5.6 python manage.py migrate 将新加入的model添加到数据库并生成API
+        5.7 SUMMARY: Change models in models.py; run python manage.py makemigrations; run python manage.py migrate
+        6 使用django交互式API
+            python manage.py shell
+            这里没有直接使用python，因为manage.py设置了DJANGO_SETTINGS_MODULE并使得django的import path为mysite/settings.py
+            也可以使用DJANGO_SETTINGS_MODUELS进行相关的设置，进而可以直接使用python交互式命令行（这里不作具体说明，见官网tutorials）
+
+            from polls.models import Question, Choice
+            Question.objects.all()
+            from django.utils import timezone
+            q = Question(question_text="What's new?", pub_date=timezone.now()) # 无论何时都返回一个list
+            q.save()
+            q.id
+            q.question_text
+            q.pub_date
+            q.question_text = "What's up?"
+            q.save()
+            Question.objects.all()
+            # <QuerySet [<Question: Question object>]> 如果要修改这样的显示，则需要在model里重写__str__方法(见polls/models.py)
+
+            修改models.py之后，重新启动python manage.py shell，运行相应命令即可展示出修改后的结果
+            from polls.models import Question, Choice
+            Question.objects.all()
+            Question.objects.filter(id=1)
+            Question.objects.filter(question_text__startswith='What')
+            from django.utils import timezone
+            current_year = timezone.now().year
+            Question.objects.get(pub_date__year=current_year)
+            # Question.objects.get(id=1)
+            q = Question.objects.get(pk=1)
+            q.choice_set.all()
+            q.choice_set.create(choice_text='Not much', votes=0)
+            q.choice_set.count()
+            c.delete()
+        7 django管理员
+        7.1 添加管理员
+        python manage.py createsuperuser
+        并根据接下来的提示添加用户名和密码(admin, tb275633)
+        7.2 添加布署服务
+        python manage.py runserver
+        转向 http://127.0.0.1:8000/admin/ 进行管理员登录
+        django.contrib.auth提供了上述框架
+        7.3 在管理员界面使得poll app修改
+        在polls/admin.py中注册poll app
+        from django.contrib import admin
+
+        from .models import Question
+
+        admin.site.register(Question)
+
+    三 设置view
+    1 添加更多view于polls/views.py
+    1.1 于polls/views.py中添加以下请求路径
+    def detail(request, question_id):
+        return HttpResponse("You're looking at question %s."  % question_id)
+
+    def results(request, question_id):
+        response = "You're looking at the results of question %s."
+        return HttpResponse(response % question_id)
+
+    def vote(request, question_id):
+        return HttpResponse("You're voting on question %s." % question_id)
+
+    1.2 于polls/urls.py添加路径匹配
+    from django.conf.urls import url
+
+    from . import views
+
+    urlpatterns = [
+        # ex: /polls/
+        url(r'^$', views.index, name='index'),
+        # ex: /polls/5/ # 当匹配成功时，相当于activate如下方法detail(request=<HttpRequest object>, question_id='34')
+        url(r'^(?P<question_id>[0-9]+)/$', views.detail, name='detail'),
+        # ex: /polls/5/results/
+        url(r'^(?P<question_id>[0-9]+)/results/$', views.results, name='results'),
+        # ex: /polls/5/vote/
+        url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+    ]
+
+    2 添加实际的views
+    2.1 在polls/views.py中修改index方法，而使得index(request)返回的数据是从数据库查出的结果：
+        def index(request):
+        latest_question_list = Question.objects.order_by('-pub_date')[:5]
+        output = ', '.join([q.question_text for q in latest_question_list])
+        return HttpResponse(output)
+    2.2 生成网页模板
+        默认情况下，DjangoTemplates找“templates”目录下INSTALLED_APPS的app名
+        注意：如果只是把模板放在polls/templates/下，而不是polls/templates/polls下，Django会选择第一个名字匹配的模板，这种情况下，如
+        果另一个app里有一个名字相同的模板，那么Django就没办法识别他们，所以应当按照这样的示例设置命名空间
+        {% if latest_question_list %}
+            <ul>
+            {% for question in latest_question_list %}
+                <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No polls are available.</p>
+        {% endif %}
+    2.3 将views和template关联
+        from django.http import HttpResponse
+        from django.template import loader
+
+        from .models import Question
+
+
+        def index(request):
+            latest_question_list = Question.objects.order_by('-pub_date')[:5]
+            template = loader.get_template('polls/index.html')
+            context = {
+                'latest_question_list': latest_question_list,
+            }
+            return HttpResponse(template.render(context, request))
+
+    3 render()
+    render()提供了更简便的方式来
+    from django.shortcuts import render
+
+    from .models import Question
+
+
+    def index(request):
+        latest_question_list = Question.objects.order_by('-pub_date')[:5]
+        context = {'latest_question_list': latest_question_list}
+        return render(request, 'polls/index.html', context)
+
+    4 404处理
+    4.1 在polls/view.py示例404处理：
+    from django.http import Http404
+    from django.shortcuts import render
+
+    from .models import Question
+    # ...
+    def detail(request, question_id):
+        try:
+            question = Question.objects.get(pk=question_id)
+        except Question.DoesNotExist:
+            raise Http404("Question does not exist")
+        return render(request, 'polls/detail.html', {'question': question})
+
+    4.2 添加模板
+    polls/templates/polls/detail.html添加
+    {{ question }}
+
+    5 get_object_or_404()
+    在polls/views.py中作出如下修改：
+    from django.shortcuts import get_object_or_404, render
+
+    from .models import Question
+    # ...
+    def detail(request, question_id):
+        question = get_object_or_404(Question, pk=question_id)
+        return render(request, 'polls/detail.html', {'question': question})
+
+    此外，还有get_list_or_404()。之所以用这样的方法，主要是为了解耦
+
+    6 使用模板系统
+
+    7 移除模板中的hardcoded urls
+    将模板polls/templates/polls/index.html中的
+    <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+    改为
+    <li><a href="{% url 'detail' question.id %}">{{ question.question_text }}</a></li>
+    因为polls/url里已经定义了url，这里主要是为了解耦。这样只要修改polls/urls.py里的路径，不用再修改template里的url
+
+    8 URL命名空间
+    当一个项目里存在多个app时，通过命名空间来确定url
+    8.1 首先在urls.py里添加 app_name = 'polls'
+    from django.conf.urls import url
+
+    from . import views
+
+    app_name = 'polls'
+    urlpatterns = [
+        url(r'^$', views.index, name='index'),
+        url(r'^(?P<question_id>[0-9]+)/$', views.detail, name='detail'),
+        url(r'^(?P<question_id>[0-9]+)/results/$', views.results, name='results'),
+        url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+    ]
+
+    8.2 在template里添加命名空间
+    <li><a href="{% url 'polls:details' question.id}">{{question.question_text}}</a></li?
+
+    四 继续view
+    1 完成一个简单的表单
+    1.1 在polls/templates/polls/detail.html模板中
+
+    <h1>{{ question.question_text }}</h1>
+
+    {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
+
+    <form action="{% url 'polls:vote' question.id %}" method="post">
+    {% csrf_token %}
+    {% for choice in question.choice_set.all %}
+        <input type="radio" name="choice" id="choice{{ forloop.counter }}" value="{{ choice.id }}" />
+        <label for="choice{{ forloop.counter }}">{{ choice.choice_text }}</label><br />
+    {% endfor %}
+    <input type="submit" value="Vote" />
+    </form>
+
+    1.1.1 之所以要写成method='post'，是因为form形式会修改服务器端数据
+    1.1.2 forloop.counter
+    1.1.3 POST 涉及到跨域访问，django利用{% csrf_token %}解决，所有指向internal URL的POST请求都应当使用该标签
+
+    1.2 polls/views.py 添加 vote() 逻辑
+
+    from django.shortcuts import get_object_or_404, render
+    from django.http import HttpResponseRedirect, HttpResponse
+    from django.urls import reverse
+
+    from .models import Choice, Question
+    # ...
+    def vote(request, question_id):
+        question = get_object_or_404(Question, pk=question_id)
+        try:
+            selected_choice = question.choice_set.get(pk=request.POST['choice'])
+        except (KeyError, Choice.DoesNotExist):
+            # Redisplay the question voting form.
+            return render(request, 'polls/detail.html', {
+                'question': question,
+                'error_message': "You didn't select a choice.",
+            })
+        else:
+            selected_choice.votes += 1
+            selected_choice.save()
+            # Always return an HttpResponseRedirect after successfully dealing
+            # with POST data. This prevents data from being posted twice if a
+            # user hits the Back button.
+            return HttpResponseRedirect(reverse('polls:results', args=(question.id,)))
+
+    1.2.1 request.POST 是dict类型的对象，request.POST['choice'] key'choice'相应的value值; request.GET也是同样的用法
+    1.2.2 request.POST['choice'] 如果找不到相应的key则会报KeyError
+    1.2.3 在成功处理过一个POST数据之后都应当返回一个HttpResponseRedirect
+    1.2.4 reverse() 可以避免hardcode URL，最后可能返回的URL格式为：'/polls/3/results/'
+
+    2 使用django 'generic views' 系统复用view代码
+    2.1 重构view代码遵循以下三步：
+        转换URLconf
+        删除不需要的旧代码
+        加入基于generic views新的视图
+    2.1.1 Amend URLconf
+
+        from django.conf.urls import url
+
+        from . import views
+
+        app_name = 'polls'
+        urlpatterns = [
+            url(r'^$', views.IndexView.as_view(), name='index'),
+            url(r'^(?P<pk>[0-9]+)/$', views.DetailView.as_view(), name='detail'),
+            url(r'^(?P<pk>[0-9]+)/results/$', views.ResultsView.as_view(), name='results'),
+            url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+        ]
+
+    这里将<question_id>换成了<pk>, 将views.index等换成了views.IndexView.as_view()
+
+    2.1.2 Amend views
+
+        from django.shortcuts import get_object_or_404, render
+        from django.http import HttpResponseRedirect
+        from django.urls import reverse
+        from django.views import generic
+
+        from .models import Choice, Question
+
+
+        class IndexView(generic.ListView):
+            template_name = 'polls/index.html'
+            context_object_name = 'latest_question_list'
+
+            def get_queryset(self):
+                """Return the last five published questions."""
+                return Question.objects.order_by('-pub_date')[:5]
+
+
+        class DetailView(generic.DetailView):
+            model = Question
+            template_name = 'polls/detail.html'
+
+
+        class ResultsView(generic.DetailView):
+            model = Question
+            template_name = 'polls/results.html'
+
+
+        def vote(request, question_id):
+            ... # same as above, no changes needed.
+
+    - 每个generic view需要知道它们对应的model，所以要设置model属性
+    - DetailView需要从URL中得到pk下的主键
+    - 默认的情况下，DetailView使用模板<app name>/<model name>_detail.html，这该项目中为polls/question_detail.html。设定
+      template_name可以防止django使用自动生成的模板
+      同理，ListView使用默认的模板<app name>/<model name>_list.html
+    - django在模板中可以提供变量名，但在ListView中，自动生成的变量名为question_list，与模板中的变量名不同，因此需要用
+      context_object_name来重置，如上
+
+    五 自动测试
+    1 引入自动测试
+    Jacob Kaplan-Moss, one of Django’s original developers, says “Code without tests is broken by design.”
+
+    2 基本的测试策略
+    一些工程师采用test-driven development，即先写测试再写代码
+
+    3 开始测试
+    3.1 定位bug
+
+    3.2 添加自动测试
+        在polls/tests.py添加如下测试：
+        import datetime
+
+        from django.utils import timezone
+        from django.test import TestCase
+
+        from .models import Question
+
+
+        class QuestionMethodTests(TestCase):
+
+            def test_was_published_recently_with_future_question(self):
+                """
+                was_published_recently() should return False for questions whose
+                pub_date is in the future.
+                """
+                time = timezone.now() + datetime.timedelta(days=30)
+                future_question = Question(pub_date=time)
+                self.assertIs(future_question.was_published_recently(), False)
+
+    3.3 跑测试
+        在命令行运行python manage.py test polls
+        - python manage.py test polls 在polls文件夹下寻找tests.py
+        - 寻找django.test.TestCase的子类
+        - 为测试创建一个临时数据库
+        - 寻找实体类下test开头的方法
+        - 调用assertIs()方法，发现was_published_recently()返回真，虽然我们需要它返回假
+    3.4 修正bug
+        def was_published_recently(self):
+            now = timezone.now()
+            return now - datetime.timedelta(days=1) <= self.pub_date <= now
+    3.5 更全面的测试
+
+        def test_was_published_recently_with_old_question(self):
+            """
+            was_published_recently() should return False for questions whose
+            pub_date is older than 1 day.
+            """
+            time = timezone.now() - datetime.timedelta(days=30)
+            old_question = Question(pub_date=time)
+            self.assertIs(old_question.was_published_recently(), False)
+
+        def test_was_published_recently_with_recent_question(self):
+            """
+            was_published_recently() should return True for questions whose
+            pub_date is within the last day.
+            """
+            time = timezone.now() - datetime.timedelta(hours=1)
+            recent_question = Question(pub_date=time)
+            self.assertIs(recent_question.was_published_recently(), True)
+
+
+    4 测试view
+    4.1 django test client
+    django提供了test Client来模拟用户的交互
+    4.1.1 shell 中设定测试环境
+        from django.test.utils import setup_test_environment
+        setup_test_environment()
+        # 这个方法不会设置一个测试数据库，所有的测试会在已有的数据库上
+    4.1.2 导入test client类
+        from django.test import Client
+        client = Client()
+    4.1.3 进行测试
+        response = client.get('/')
+        response.status_code
+        from django.urls import reverse
+        response = client.get(reverse('polls:index'))
+        response.status_code
+        response.content
+        response.context['latest_question_list']
+
+    4.2 改善view
+    polls/views.py
+
+
+    5 更多测试
+
+    6
+
+
+
+
+
+
+
+
+
+
+
