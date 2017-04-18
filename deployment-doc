@@ -4,6 +4,10 @@ Django投票网站实训项目
     一 创建项目：
     '''
     尽量避免使用django或test这样的关键字于项目中
+    我使用git来进行项目管理，当然首先要安装git，然后我在github上建了mysite空项目，并在本地项目文件夹的gib bash里运行下述命令：
+    （可能需要git init或在IDE里创建git，如果项目里已经有文件，还可能需要commit）
+    git remote add origin https://github.com/JasonNK/mysite.git
+    git push -u origin master
     '''
 
     （一）django-admin startproject mysite # 这会于当前的路径下创建一个mysite文件夹
@@ -540,9 +544,22 @@ Django投票网站实训项目
     polls/views.py
 
 
-    5 更多测试
 
-    6
+
+    5 更多测试
+    可以关注下这个专为测试而生的浏览器工具：http://www.seleniumhq.org/。Django有LiveServerTestCase来结合Selenium这个工具。
+    coverage.py可以测试dead code
+
+    六 添加网页
+    使用 django.contrib.staticfiles 来处理页面相关的文件
+    1 个性化app
+    1.1 先在路径下添加.css文件
+    li a {
+        color: green;
+    }
+    1.2 在相应的.html上添加如下代码
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'polls/style.css' %}" />
 
 
 
